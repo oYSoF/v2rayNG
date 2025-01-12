@@ -1,33 +1,63 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    id("com.jaredsburrows.license")
 }
 
 android {
     namespace = "com.v2ray.ang"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.v2ray.ang"
         minSdk = 21
-        targetSdk = 34
-        versionCode = 552
-        versionName = "1.8.19"
+        targetSdk = 35
+        versionCode = 627
+        versionName = "1.9.31"
         multiDexEnabled = true
+
+        val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                if (abiFilterList != null && abiFilterList.isNotEmpty()) {
+                    include(*abiFilterList.toTypedArray())
+                } else {
+                    include(
+                        "arm64-v8a",
+                        "armeabi-v7a",
+                        "x86_64",
+                        "x86"
+                    )
+                }
+                isUniversalApk = abiFilterList.isNullOrEmpty()
+            }
+        }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
     buildTypes {
         release {
             isMinifyEnabled = false
-
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-        debug {
-            isMinifyEnabled = false
+    }
 
+    flavorDimensions.add("distribution")
+    productFlavors {
+        create("fdroid") {
+            dimension = "distribution"
+            applicationIdSuffix = ".fdroid"
+            buildConfigField("String", "DISTRIBUTION", "\"F-Droid\"")
+        }
+        create("playstore") {
+            dimension = "distribution"
+            buildConfigField("String", "DISTRIBUTION", "\"Play Store\"")
         }
     }
 
@@ -37,88 +67,124 @@ android {
         }
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
-    }
 
-    splits {
-        abi {
-            isEnable = true
-            isUniversalApk = true
-        }
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     applicationVariants.all {
         val variant = this
-        val versionCodes =
-            mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
+        val isFdroid = variant.productFlavors.any { it.name == "fdroid" }
+        if (isFdroid) {
+            val versionCodes =
+                mapOf("armeabi-v7a" to 2, "arm64-v8a" to 1, "x86" to 4, "x86_64" to 3, "universal" to 0
+            )
 
-        variant.outputs
-            .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
-            .forEach { output ->
-                val abi = if (output.getFilter("ABI") != null)
-                    output.getFilter("ABI")
-                else
-                    "all"
+            variant.outputs
+                .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
+                .forEach { output ->
+                    val abi = output.getFilter("ABI") ?: "universal"
+                    output.outputFileName = "v2rayNG_${variant.versionName}-fdroid_${abi}.apk"
+                    if (versionCodes.containsKey(abi)) {
+                        output.versionCodeOverride =
+                            (100 * variant.versionCode + versionCodes[abi]!!).plus(5000000)
+                    } else {
+                        return@forEach
+                    }
+                }
+        } else {
+            val versionCodes =
+                mapOf("armeabi-v7a" to 4, "arm64-v8a" to 4, "x86" to 4, "x86_64" to 4, "universal" to 4)
 
-                output.outputFileName = "v2rayNG_${variant.versionName}_${abi}.apk"
-                if(versionCodes.containsKey(abi))
-                {
-                    output.versionCodeOverride = (1000000 * versionCodes[abi]!!).plus(variant.versionCode)
+            variant.outputs
+                .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
+                .forEach { output ->
+                    val abi = if (output.getFilter("ABI") != null)
+                        output.getFilter("ABI")
+                    else
+                        "universal"
+
+                    output.outputFileName = "v2rayNG_${variant.versionName}_${abi}.apk"
+                    if (versionCodes.containsKey(abi)) {
+                        output.versionCodeOverride =
+                            (1000000 * versionCodes[abi]!!).plus(variant.versionCode)
+                    } else {
+                        return@forEach
+                    }
                 }
-                else
-                {
-                    return@forEach
-                }
-            }
+        }
     }
 
     buildFeatures {
         viewBinding = true
         buildConfig = true
     }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
 }
 
 dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar","*.jar"))))
-    testImplementation("junit:junit:4.13.2")
+    // Core Libraries
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
 
-    // Androidx
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.legacy:legacy-support-v4:1.0.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.cardview:cardview:1.0.0")
-    implementation("androidx.preference:preference-ktx:1.2.1")
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("androidx.fragment:fragment-ktx:1.6.2")
-    implementation("androidx.multidex:multidex:2.0.1")
-    implementation("androidx.viewpager2:viewpager2:1.1.0-beta02")
+    // AndroidX Core Libraries
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.preference.ktx)
+    implementation(libs.recyclerview)
 
-    // Androidx ktx
-    implementation("androidx.activity:activity-ktx:1.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    // UI Libraries
+    implementation(libs.material)
+    implementation(libs.toastcompat)
+    implementation(libs.editorkit)
+    implementation(libs.flexbox)
 
-    //kotlin
-    implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.23")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+    // Data and Storage Libraries
+    implementation(libs.mmkv.static)
+    implementation(libs.gson)
 
-    implementation("com.tencent:mmkv-static:1.3.4")
-    implementation("com.google.code.gson:gson:2.10.1")
-    implementation("io.reactivex:rxjava:1.3.8")
-    implementation("io.reactivex:rxandroid:1.2.1")
-    implementation("com.tbruyelle.rxpermissions:rxpermissions:0.9.4@aar")
-    implementation("com.github.jorgecastilloprz:fabprogresscircle:1.01@aar")
-    implementation("me.drakeet.support:toastcompat:1.1.0")
-    implementation("com.blacksquircle.ui:editorkit:2.9.0")
-    implementation("com.blacksquircle.ui:language-base:2.9.0")
-    implementation("com.blacksquircle.ui:language-json:2.9.0")
-    implementation("io.github.g00fy2.quickie:quickie-bundled:1.9.0")
-    implementation("com.google.zxing:core:3.5.3")
+    // Reactive and Utility Libraries
+    implementation(libs.rxjava)
+    implementation(libs.rxandroid)
+    implementation(libs.rxpermissions)
 
-    implementation("androidx.work:work-runtime-ktx:2.8.1")
-    implementation("androidx.work:work-multiprocess:2.8.1")
+    // Language and Processing Libraries
+    implementation(libs.language.base)
+    implementation(libs.language.json)
+
+    // Intent and Utility Libraries
+    implementation(libs.quickie.foss)
+    implementation(libs.core)
+
+    // AndroidX Lifecycle and Architecture Components
+    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.lifecycle.livedata.ktx)
+    implementation(libs.lifecycle.runtime.ktx)
+
+    // Background Task Libraries
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.work.multiprocess)
+
+    // Multidex Support
+    implementation(libs.multidex)
+
+    // Testing Libraries
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    testImplementation(libs.org.mockito.mockito.inline)
+    testImplementation(libs.mockito.kotlin)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 }
