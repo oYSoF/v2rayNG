@@ -7,6 +7,7 @@
     <string name="navigation_drawer_close">Close navigation drawer</string>
     <string name="migration_success">数据迁移成功!</string>
     <string name="migration_fail">数据迁移失败啦!</string>
+    <string name="pull_down_to_refresh">请下拉刷新!</string>
 
     <!-- Notifications -->
     <string name="notification_action_stop_v2ray">停止</string>
@@ -113,6 +114,8 @@
     <string name="server_lab_port_hop">跳跃端口(会覆盖服务器端口)</string>
     <string name="server_lab_port_hop_interval">端口跳跃间隔(秒)</string>
     <string name="server_lab_stream_pinsha256">SHA256证书指纹</string>
+    <string name="server_lab_bandwidth_down">带宽下行 (单位)</string>
+    <string name="server_lab_bandwidth_up">带宽上行 (单位)</string>
     <string name="server_lab_xhttp_mode">XHTTP 模式</string>
     <string name="server_lab_xhttp_extra">XHTTP Extra 原始 JSON，格式： { XHTTPObject }</string>
 
